@@ -9,7 +9,7 @@ app.use(express.json());
 
 //const { MongoClient, ServerApiVersion } = require('mongodb');
 const { MongoClient } = require('mongodb');
-const uri = "mongodb+srv://cchraplak:a3Chraplak@a3.ouon6.mongodb.net/?retryWrites=true&w=majority&appName=a3";
+const uri = "mongodb+srv://cchraplak:a4-chraplak@a4.jujm8.mongodb.net/?retryWrites=true&w=majority&appName=a4";
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri);
@@ -119,8 +119,13 @@ app.use('/', (req, res, next) => {
                         return;
                     }
 
+                    let id = 0;
+                    if (userCollection.length > 0) {
+                        id = userCollection[userCollection.length - 1]._id + 1;
+                    }
+
                     let user = [{
-                        _id: userCollection[userCollection.length - 1]._id + 1,
+                        _id: id,
                         user: credentials[0],
                         pwd: credentials[1],
                         appointments: []
