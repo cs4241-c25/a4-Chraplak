@@ -1,0 +1,19 @@
+{
+  "name": "cs4241-c25-a4-short-stack",
+  "version": "0.1.0",
+  "description": "WPI CS4241-C25 Assignment A4",
+  "author": "Camren Chraplak",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "localstorage": "^1.0.1",
+    "mongodb": "^6.13.0",
+    "node": "^23.7.0",
+    "simpledotcss": "^2.3.3"
+  },
+  "engines": {
+    "node":"16.x"
+  }
+}

@@ -1,0 +1,61 @@
+:root {
+    --corner-width: 130px;
+    --date-width: 180px;
+    --time-width: 150px;
+    --primary-width: 200px;
+    --local-width: 300px;
+    --item-radius: 10px;
+}
+
+
+body {
+    grid-template-columns: none !important;
+    margin: 20px;
+}
+
+body > * {
+    grid-column: 1;
+}
+
+/* basic row edit buttons */
+.edit {
+    width: 50px;
+    height: 50px;
+}
+
+/* table column widths */
+.corner {
+    min-width: var(--corner-width) !important;
+    max-width: var(--corner-width) !important;
+}
+
+.date {
+    min-width: var(--date-width) !important;
+    max-width: var(--date-width) !important;
+}
+
+.time {
+    min-width: var(--time-width) !important;
+    max-width: var(--time-width) !important;
+}
+
+.description {
+    max-width: calc(100vw - var(--corner-width) - var(--date-width) - var(--time-width) - var(--primary-width) - var(--local-width) - 95px);
+    width: 100%;
+    min-width: 200px;
+}
+
+.text {
+    width: 100%;
+    min-width: 150px;
+}
+
+.primary {
+    min-width: var(--primary-width) !important;
+    max-width: var(--primary-width) !important;
+}
+
+.local {
+    min-width: var(--local-width) !important;
+    max-width: var(--local-width) !important;
+}
