@@ -233,8 +233,13 @@ const removeRow = async function( event, id ) {
     let row = document.querySelector("#row" + id.toString());
     row.parentNode.removeChild(row);
 
+    const user = {
+        UserID: localStorage.getItem("username"),
+        RemoveID: id
+    }
+
     // remove from server
-    await pingServer({"RemoveID": localStorage.getItem("username")}, "/remove");
+    await pingServer(user, "/remove");
 }
 
 // logs out user

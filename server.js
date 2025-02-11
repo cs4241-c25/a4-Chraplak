@@ -327,12 +327,14 @@ app.use('/', (req, res, next) => {
         // gets row to be removed
         console.log("Remove Appointment");
         let found = false;
-        const id = parseInt(parseData.RemoveID);
+        const removeID = parseInt(parseData.RemoveID);
 
-        let removeID = getUserID(userCollection, parseData.RemoveID);
+        let userID = getUserID(userCollection, parseData.UserID);
+
+        console.log("Removing: " + userID.toString() + "|" + removeID.toString());
 
         try {
-            const appointID = removeID.toString() + "|" + id.toString();
+            const appointID = userID.toString() + "|" + removeID.toString();
             await db.collection("Appointments").deleteOne({_id: appointID});
             found = true;
         }
