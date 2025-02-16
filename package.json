@@ -11,9 +11,11 @@
     "localstorage": "^1.0.1",
     "mongodb": "^6.13.0",
     "node": "^23.7.0",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
     "simpledotcss": "^2.3.3"
   },
   "engines": {
-    "node":"16.x"
+    "node": "16.x"
   }
 }

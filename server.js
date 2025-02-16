@@ -46,9 +46,137 @@ async function run() {
 }
 run().catch(console.dir);
 
-app.use('/', (req, res, next) => {
+app.use('/login', (req, res, next) => {
+    console.log("Login Root");
     console.log('Request URL: ' + req.url);
-    //next(); // go to the next middleware for this route
+
+    let dataString = ""
+
+    req.on( "data", function( data ) {
+        console.log("Getting Data: " + data.toString());
+        dataString += data
+    });
+
+    req.on( "end", async function() {
+        console.log("End Data: " + dataString.toString());
+        let parseData = "";
+        try {
+            parseData = JSON.parse(dataString);
+            console.log("Data Received: " + parseData);
+        }
+        catch(e) {
+            // return for robot
+            console.log("No Data Input!");
+            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+            res.end();
+            return;
+        }
+
+        // gets data on database for quick access
+        const userCollection = await db.collection("Users").find({}).toArray();
+
+        // sets username
+        let credentials = parseData.split("|");
+        if (credentials.length === 2) {
+            for (let i = 0; i < userCollection.length; i++) {
+                if (userCollection[i].user === credentials[0] && credentials[0] !== "null") {
+                    if (userCollection[i].pwd === credentials[1] && credentials[1] !== "null") {
+                        console.log("Correct Password");
+                        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+                        res.end(JSON.stringify({
+                            user: userCollection[i].user,
+                            status: "correct"
+                        }));
+                    }
+                    else {
+                        console.log("Wrong Password");
+                        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+                        res.end(JSON.stringify({
+                            user: userCollection[i].user,
+                            status: "wrong"
+                        }));
+                    }
+                    return;
+                }
+            }
+
+            // adds new user if not found
+            console.log("No User Found");
+            if (credentials[0].length === 0 || credentials[1].length === 0 || credentials[0] === "null" || credentials[1] === "null") {
+                console.log("Invalid credentials");
+                res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+                res.end(JSON.stringify({
+                    user: "",
+                    status: "invalid"
+                }));
+                return;
+            }
+
+            let id = 0;
+            if (userCollection.length > 0) {
+                id = userCollection[userCollection.length - 1]._id + 1;
+            }
+
+            let user = [{
+                _id: id,
+                user: credentials[0],
+                pwd: credentials[1],
+                appointments: []
+            }];
+            await db.collection("Users").insertMany(user);
+
+            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+            res.end(JSON.stringify({
+                user: credentials[0],
+                status: "new"
+            }));
+        }
+        else {
+            console.log("Invalid credentials");
+            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+            res.end(JSON.stringify({
+                user: "",
+                status: "invalid"
+            }));
+        }
+    });
+});
+
+app.use('/logout', (req, res, next) => {
+    console.log("Logout Root");
+    console.log('Request URL: ' + req.url);
+
+    let dataString = ""
+
+    req.on( "data", function( data ) {
+        console.log("Getting Data: " + data.toString());
+        dataString += data
+    });
+
+    req.on( "end", async function() {
+        console.log("End Data: " + dataString.toString());
+        let parseData = "";
+        try {
+            parseData = JSON.parse(dataString);
+            console.log("Data Received: " + parseData);
+        }
+        catch(e) {
+            // return for robot
+            console.log("No Data Input!");
+            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+            res.end();
+            return;
+        }
+
+        console.log("Logging Out!");
+        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+        res.end(JSON.stringify(""));
+    });
+});
+
+app.use('/fetch', (req, res, next) => {
+    console.log("Fetch Root");
+    console.log('Request URL: ' + req.url);
 
     let dataString = ""
 
@@ -77,84 +205,6 @@ app.use('/', (req, res, next) => {
         const physicianCollection = await db.collection("Physicians").find({}).toArray();
         const userCollection = await db.collection("Users").find({}).toArray();
         const appointCollection = await db.collection("Appointments").find({}).toArray();
-
-        switch (req.url) {
-            case "/login":
-                console.log("login!");
-
-                // sets username
-                let credentials = parseData.split("|");
-                if (credentials.length === 2) {
-                    for (let i = 0; i < userCollection.length; i++) {
-                        if (userCollection[i].user === credentials[0] && credentials[0] !== "null") {
-                            if (userCollection[i].pwd === credentials[1] && credentials[1] !== "null") {
-                                console.log("Correct Password");
-                                res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-                                res.end(JSON.stringify({
-                                    user: userCollection[i].user,
-                                    status: "correct"
-                                }));
-                            }
-                            else {
-                                console.log("Wrong Password");
-                                res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-                                res.end(JSON.stringify({
-                                    user: userCollection[i].user,
-                                    status: "wrong"
-                                }));
-                            }
-                            return;
-                        }
-                    }
-
-                    // adds new user if not found
-                    console.log("No User Found");
-                    if (credentials[0].length === 0 || credentials[1].length === 0 || credentials[0] === "null" || credentials[1] === "null") {
-                        console.log("Invalid credentials");
-                        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-                        res.end(JSON.stringify({
-                            user: "",
-                            status: "invalid"
-                        }));
-                        return;
-                    }
-
-                    let id = 0;
-                    if (userCollection.length > 0) {
-                        id = userCollection[userCollection.length - 1]._id + 1;
-                    }
-
-                    let user = [{
-                        _id: id,
-                        user: credentials[0],
-                        pwd: credentials[1],
-                        appointments: []
-                    }];
-                    await db.collection("Users").insertMany(user);
-
-                    res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-                    res.end(JSON.stringify({
-                        user: credentials[0],
-                        status: "new"
-                    }));
-        }
-        else {
-            console.log("Invalid credentials");
-            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-            res.end(JSON.stringify({
-                user: "",
-                status: "invalid"
-            }));
-        }
-
-        break;
-    case "/logout":
-        console.log("Logging Out!");
-        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-        res.end(JSON.stringify(""));
-    break;
-    case "/fetch":
-        console.log("Fetching!");
 
         // gets initial data of appointments on server
         try {
@@ -214,10 +264,39 @@ app.use('/', (req, res, next) => {
         catch (e) {
             console.log("Error Fetching!");
         }
-    break;
-    case "/physicians":
+    });
+});
+
+app.use('/physicians', (req, res, next) => {
+    console.log("Physician Root");
+    console.log('Request URL: ' + req.url);
+
+    let dataString = ""
+
+    req.on( "data", function( data ) {
+        console.log("Getting Data: " + data.toString());
+        dataString += data
+    });
+
+    req.on( "end", async function() {
+        console.log("End Data: " + dataString.toString());
+        let parseData = "";
+        try {
+            parseData = JSON.parse(dataString);
+            console.log("Data Received: " + parseData);
+        }
+        catch(e) {
+            // return for robot
+            console.log("No Data Input!");
+            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+            res.end();
+            return;
+        }
+
+        // gets data on database for quick access
+        const physicianCollection = await db.collection("Physicians").find({}).toArray();
+
         // gets list of available physicians for selection
-        console.log("Physicians");
         try {
             let physNames = [];
             for (let i = 0; i < physicianCollection.length; i++) {
@@ -231,11 +310,41 @@ app.use('/', (req, res, next) => {
             res.writeHead( 404, "OK", {"Content-Type": "text/plain" });
             res.end("Could not connect to the database!");
         }
+    });
+});
 
-    break;
-    case "/local":
+app.use('/local', (req, res, next) => {
+    console.log("Edit Root");
+    console.log('Request URL: ' + req.url);
+
+    let dataString = ""
+
+    req.on( "data", function( data ) {
+        console.log("Getting Data: " + data.toString());
+        dataString += data
+    });
+
+    req.on( "end", async function() {
+        console.log("End Data: " + dataString.toString());
+        let parseData = "";
+        try {
+            parseData = JSON.parse(dataString);
+            console.log("Data Received: " + parseData);
+        }
+        catch(e) {
+            // return for robot
+            console.log("No Data Input!");
+            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+            res.end();
+            return;
+        }
+
+        // gets data on database for quick access
+        const locationCollection = await db.collection("Locations").find({}).toArray();
+        const physicianCollection = await db.collection("Physicians").find({}).toArray();
+        const userCollection = await db.collection("Users").find({}).toArray();
+
         // gets row to be edited
-        console.log("Edit Appointment");
         let exists = false;
 
         let appUserID = getUserID(userCollection, parseData.userID);
@@ -322,10 +431,39 @@ app.use('/', (req, res, next) => {
             const converted = JSON.stringify( local );
             res.end(converted);
         }
-    break;
-    case "/remove":
+    });
+});
+
+app.use('/remove', (req, res, next) => {
+    console.log("Remove Root");
+    console.log('Request URL: ' + req.url);
+
+    let dataString = ""
+
+    req.on( "data", function( data ) {
+        console.log("Getting Data: " + data.toString());
+        dataString += data
+    });
+
+    req.on( "end", async function() {
+        console.log("End Data: " + dataString.toString());
+        let parseData = "";
+        try {
+            parseData = JSON.parse(dataString);
+            console.log("Data Received: " + parseData);
+        }
+        catch(e) {
+            // return for robot
+            console.log("No Data Input!");
+            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
+            res.end();
+            return;
+        }
+
+        // gets data on database for quick access
+        const userCollection = await db.collection("Users").find({}).toArray();
+
         // gets row to be removed
-        console.log("Remove Appointment");
         let found = false;
         const removeID = parseInt(parseData.RemoveID);
 
@@ -348,16 +486,13 @@ app.use('/', (req, res, next) => {
         res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
         const convRem = JSON.stringify("Remove");
         res.end(convRem);
-    break;
-    default:
-        // case not found
-        console.log("Undefined Case");
-        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-        const convUnd = JSON.stringify("Undefined Case");
-        res.end(convUnd);
-    break;
-}
+    });
 });
-})
+
+app.use('/', (req, res, next) => {
+    console.log("Root");
+    console.log('Request URL: ' + req.url);
+    next(); // go to the next middleware for this route
+});
 
 app.listen(process.env.PORT || port);
