@@ -8,8 +8,8 @@ const session = require('express-session')
 const GitHubStrategy = require('passport-github2').Strategy;
 
 // Github OAuth
-const GITHUB_CLIENT_ID = "Ov23lih5IcsqaUzkAcAv";
-const GITHUB_CLIENT_SECRET = "5b71ab6a8be08ddac3e7507eb5f98f1a371e1f60";
+const GITHUB_CLIENT_ID = "Ov23liAOeMukldZ9UoJv";
+const GITHUB_CLIENT_SECRET = "b2e47e66be6ff61d7dd6929feb2e8a612be9f1a3";
 
 // Express Session
 const EXPRESS_SESSION_SECRET = "expresssecret";
@@ -97,7 +97,7 @@ passport.deserializeUser(function (obj, done) {
 const gitStrategy = new GitHubStrategy({
         clientID: GITHUB_CLIENT_ID,
         clientSecret: GITHUB_CLIENT_SECRET,
-        //callbackURL: "http://localhost:3000/auth/github/callback"
+        callbackURL: "https://a4-camren-chraplak.glitch.me/auth/github/callback"
     },
     async function (accessToken, refreshToken, profile, done) {
         // This code will run when the user is successfully logged in with GitHub.
