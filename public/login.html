@@ -1,11 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>GitHub OAuth example</title>
-  <script src="js/main.js" type="text/javascript" async defer></script>
+  <title>CS4241 Assignment 4</title>
+  <meta name="description" content="Physician appointment scheduler">
   <link rel="stylesheet" href="https://cdn.simplecss.org/simple.css">
   <link rel="stylesheet" href="css/minimal.css">
 
@@ -17,10 +16,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Karla&display=swap" rel="stylesheet">
 </head>
-
 <body>
-<h1 id="user"></h1>
-<a id="out-span" href="/logout"><button id="logoutButton">Logout</button></a>
+<h1>Sign In To Get Started</h1>
+<a id="in-span" href="/auth/github"><button id="githubButton">Login with GitHub</button></a>
 
 <hr />
 <hr />
@@ -33,7 +31,7 @@
     <th class="corner">
       <form id="corner-form">
         <label for="add"></label>
-        <button class="edit" id="add" hidden>+</button>
+        <button class="edit" id="add" hidden disabled>+</button>
       </form>
     </th>
     <th class="date">Date</th>
@@ -46,6 +44,11 @@
   <tbody id="appointments-body">
   </tbody>
 </table>
-</body>
 
+<script>
+  document.getElementById('add').addEventListener('click', (event) => {
+    event.preventDefault();
+  });
+</script>
+</body>
 </html>

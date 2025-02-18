@@ -1,18 +1,194 @@
 const express = require('express');
-//const fs = require("node:fs");
 const app = express();
 const port = 3000;
-//const mime = require( "mime" );
+/*const dotenv =*/ require('dotenv').config();
+const { MongoClient, Collection } = require('mongodb'); // Note that Collection is only used with JSDocs. It is NOT required.
+const passport = require('passport');
+const session = require('express-session')
+const GitHubStrategy = require('passport-github2').Strategy;
 
-app.use(express.static('public'));
+// Github OAuth
+const GITHUB_CLIENT_ID = "Ov23lih5IcsqaUzkAcAv";
+const GITHUB_CLIENT_SECRET = "5b71ab6a8be08ddac3e7507eb5f98f1a371e1f60";
+
+// Express Session
+const EXPRESS_SESSION_SECRET = "expresssecret";
+
+app.use(session({
+    secret: EXPRESS_SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 app.use(express.json());
 
-//const { MongoClient, ServerApiVersion } = require('mongodb');
-const { MongoClient } = require('mongodb');
 const uri = "mongodb+srv://cchraplak:a4-chraplak@a4.jujm8.mongodb.net/?retryWrites=true&w=majority&appName=a4";
-
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri);
+
+// region DB Connection
+// Connect to the DB
+// These JSDocs make it more convenient to work with the collections since the IDE knows that functions each Collection can use.
+/**
+ * @type {Collection}
+ */
+let DBCollection = null;
+let db;
+/**
+ * Connects to the MongoDB database
+ */
+async function connectToDB() {
+
+    // Note that this connect call is not intended for use in production
+    await client.connect();
+    db = await client.db("Data");
+    DBCollection = await db.collection("Users").find({}).toArray();
+    console.log("Connected to MongoDB");
+}
+
+connectToDB();
+
+// Middleware to check connection to DB
+app.use((req, res, next) => {
+    console.log("req url: " + req.url + ", res: " + JSON.stringify(req.body));
+    if (DBCollection !== null) {
+        next();
+    } else {
+        // Could not connect to the DB. Send an error.
+        console.log("Error connecting!");
+        res.sendStatus(503);
+    }
+});
+// endregion
+
+// region User Serialization
+/**
+ * Serialize the user.
+ * Every time the user logs in, it stores the data in `done`'s `id` parameter (the one after null) in `req.user`.
+ */
+passport.serializeUser(function (user, done) {
+    // I use user._id || user.id to allow for more flexibility of this with MongoDB.
+    // If using Passport Local, you might want to use the MongoDB id object as the primary key.
+    // However, we are using GitHub, so what we want is user.id
+    // Feel free to remove the user._id || part of it, but the `user.id` part is necessary.
+    done(null, { username: user.username, id: user._id || user.id });
+});
+
+/**
+ * Deserialize the user.
+ * Every time the user's session is ended, it removes `obj` from the user's req.
+ */
+passport.deserializeUser(function (obj, done) {
+    done(null, obj);
+});
+// endregion
+// region Strategy
+
+/**
+ * Create the GitHub Strategy.
+ *
+ * Note that the callback URL is OPTIONAL. If it is not provided, it will default to the one configured
+ * in GitHub. See the README for information on how to set that up.
+ *
+ * If you do decide to include the callbackURL, it must be EXACT. Any missmatch from the GitHub one and it will
+ * fail.
+ */
+
+const gitStrategy = new GitHubStrategy({
+        clientID: GITHUB_CLIENT_ID,
+        clientSecret: GITHUB_CLIENT_SECRET,
+        //callbackURL: "http://localhost:3000/auth/github/callback"
+    },
+    async function (accessToken, refreshToken, profile, done) {
+        // This code will run when the user is successfully logged in with GitHub.
+        process.nextTick(function () {
+            return done(null, profile);
+        });
+    }
+);
+
+passport.use(gitStrategy);
+// endregion
+// region GitHub Routes
+// This is the callback to put in GitHub. If the authentication fails, it will redirect them to '/login'.
+app.get('/auth/github/callback',
+    passport.authenticate('github', { session: true, failureRedirect: '/login' }),
+    function (req, res) {
+        // Successful authentication, redirect home.
+        res.redirect('/');
+    });
+
+// The route to redirect the user to when you want to actually have them log in with GitHub.
+// It is what happens when you click on the "Log in with GitHub" button.
+// Note that the scope is 'user:email'. You can read more about possible scopes here:
+// https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps
+// You should not need anything other than the 'user:email' if just authenticating with GitHub.
+// <a href="/auth/github">Login with GitHub</a>
+app.get('/auth/github', passport.authenticate('github', { scope: ['user:email'] }));
+// endregion
+
+function ensureAuth(req, res, next) {
+    if (req.isAuthenticated()) {
+        next();
+    } else {
+        res.redirect("/login");
+    }
+}
+
+// region login and root routes
+app.get('/', ensureAuth, (req, res) => {
+    // User is logged in
+    res.sendFile(__dirname + "/public/index.html");
+});
+
+app.get("/login", (req, res) => {
+    // User is logged in
+    console.log("Login!");
+    if (req.user) {
+        res.redirect("/");
+    } else {
+        // User is not logged in
+        res.sendFile(__dirname + "/public/login.html");
+    }
+});
+// endregion
+
+// Have the user go to /logout and it will log them out.
+// i.e. <a href="/logout">Logout</a>
+app.get("/logout", (req, res) => {
+    console.log("Logout!");
+    req.logout(() => { });
+    res.redirect('/');
+});
+
+app.use(express.static('public'));
+
+app.get("/load", ensureAuth, async (req, res) => {
+    console.log("Load!");
+    // Note that here I am using the username as the key.
+    //const userdata = await DBCollection.find({ username: req.user.username }).toArray();
+    const username = req.user.username;
+    const userdata = await db.collection("Users").find({ user: username }).toArray();
+
+    // adds new user to database
+    if (!userdata) {
+        const userCollection = await db.collection("Users").find({}).toArray();
+        let id = 0;
+        if (userCollection.length > 0) {
+            id = userCollection[userCollection.length - 1]._id + 1;
+        }
+
+        let user = [{
+            _id: id,
+            user: username,
+            appointments: []
+        }];
+        await db.collection("Users").insertMany(user);
+    }
+    // What I am doing here is attaching the username to the front of the array
+    // and then putting the rest of the data after the username
+    res.json([{ user: username }]);
+});
 
 // username getter
 function getUserID(userCollection, parseData) {
@@ -25,156 +201,7 @@ function getUserID(userCollection, parseData) {
     return userID;
 }
 
-// database variable
-let db;
-
-async function run() {
-    try {
-        // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
-        // Send a ping to confirm a successful connection
-        db = await client.db("Data");
-        await db.command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
-
-    } catch (e) {
-        // Ensures that the client will close when you error
-        await client.close();
-        console.log("Connection closed");
-        console.log(e);
-    }
-}
-run().catch(console.dir);
-
-app.use('/login', (req, res, next) => {
-    console.log("Login Root");
-    console.log('Request URL: ' + req.url);
-
-    let dataString = ""
-
-    req.on( "data", function( data ) {
-        console.log("Getting Data: " + data.toString());
-        dataString += data
-    });
-
-    req.on( "end", async function() {
-        console.log("End Data: " + dataString.toString());
-        let parseData = "";
-        try {
-            parseData = JSON.parse(dataString);
-            console.log("Data Received: " + parseData);
-        }
-        catch(e) {
-            // return for robot
-            console.log("No Data Input!");
-            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-            res.end();
-            return;
-        }
-
-        // gets data on database for quick access
-        const userCollection = await db.collection("Users").find({}).toArray();
-
-        // sets username
-        let credentials = parseData.split("|");
-        if (credentials.length === 2) {
-            for (let i = 0; i < userCollection.length; i++) {
-                if (userCollection[i].user === credentials[0] && credentials[0] !== "null") {
-                    if (userCollection[i].pwd === credentials[1] && credentials[1] !== "null") {
-                        console.log("Correct Password");
-                        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-                        res.end(JSON.stringify({
-                            user: userCollection[i].user,
-                            status: "correct"
-                        }));
-                    }
-                    else {
-                        console.log("Wrong Password");
-                        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-                        res.end(JSON.stringify({
-                            user: userCollection[i].user,
-                            status: "wrong"
-                        }));
-                    }
-                    return;
-                }
-            }
-
-            // adds new user if not found
-            console.log("No User Found");
-            if (credentials[0].length === 0 || credentials[1].length === 0 || credentials[0] === "null" || credentials[1] === "null") {
-                console.log("Invalid credentials");
-                res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-                res.end(JSON.stringify({
-                    user: "",
-                    status: "invalid"
-                }));
-                return;
-            }
-
-            let id = 0;
-            if (userCollection.length > 0) {
-                id = userCollection[userCollection.length - 1]._id + 1;
-            }
-
-            let user = [{
-                _id: id,
-                user: credentials[0],
-                pwd: credentials[1],
-                appointments: []
-            }];
-            await db.collection("Users").insertMany(user);
-
-            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-            res.end(JSON.stringify({
-                user: credentials[0],
-                status: "new"
-            }));
-        }
-        else {
-            console.log("Invalid credentials");
-            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-            res.end(JSON.stringify({
-                user: "",
-                status: "invalid"
-            }));
-        }
-    });
-});
-
-app.use('/logout', (req, res, next) => {
-    console.log("Logout Root");
-    console.log('Request URL: ' + req.url);
-
-    let dataString = ""
-
-    req.on( "data", function( data ) {
-        console.log("Getting Data: " + data.toString());
-        dataString += data
-    });
-
-    req.on( "end", async function() {
-        console.log("End Data: " + dataString.toString());
-        let parseData = "";
-        try {
-            parseData = JSON.parse(dataString);
-            console.log("Data Received: " + parseData);
-        }
-        catch(e) {
-            // return for robot
-            console.log("No Data Input!");
-            res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-            res.end();
-            return;
-        }
-
-        console.log("Logging Out!");
-        res.writeHead( 200, "OK", {"Content-Type": "text/plain" });
-        res.end(JSON.stringify(""));
-    });
-});
-
-app.use('/fetch', (req, res, next) => {
+app.use('/fetch', (req, res) => {
     console.log("Fetch Root");
     console.log('Request URL: ' + req.url);
 
@@ -220,7 +247,7 @@ app.use('/fetch', (req, res, next) => {
 
                             const appointCollIndex = appointCollection[j]._id.indexOf("|");
                             const appointmentID = Number(appointCollection[j]._id.substring(appointCollIndex + 1, appointCollection[j]._id.length));
-                            const userid = Number(appointCollection[j]._id.substring(0, appointCollIndex));
+                            //const userid = Number(appointCollection[j]._id.substring(0, appointCollIndex));
 
                             if (appointmentIDs.indexOf(appointCollection[j]._id) >= 0) {
 
@@ -267,7 +294,7 @@ app.use('/fetch', (req, res, next) => {
     });
 });
 
-app.use('/physicians', (req, res, next) => {
+app.use('/physicians', (req, res) => {
     console.log("Physician Root");
     console.log('Request URL: ' + req.url);
 
@@ -313,7 +340,7 @@ app.use('/physicians', (req, res, next) => {
     });
 });
 
-app.use('/local', (req, res, next) => {
+app.use('/local', (req, res) => {
     console.log("Edit Root");
     console.log('Request URL: ' + req.url);
 
@@ -360,6 +387,7 @@ app.use('/local', (req, res, next) => {
             let dataID = appUserID.toString() + "|" + parseData.ID;
             if (appointmentIDs.indexOf(dataID) >= 0) {
                 // updates values to new values
+                console.log("Edit existing appointment");
                 exists = true;
                 const appointColl = await db.collection("Appointments");
                 await appointColl.updateOne({_id: dataID}, {$set: {date: parseData.Date}});
@@ -417,7 +445,7 @@ app.use('/local', (req, res, next) => {
                 if (userCollection[i]._id === appUserID) {
                     for (let j = 0; j < userCollection[i].appointments.length; j++) {
                         const appointCollIndex = userCollection[i].appointments[j].indexOf("|");
-                        const appointmentID = Number(userCollection[i].appointments[j].substring(appointCollIndex + 1, userCollection[i].appointments[j].length));
+                        //const appointmentID = Number(userCollection[i].appointments[j].substring(appointCollIndex + 1, userCollection[i].appointments[j].length));
                         const userid = Number(userCollection[i].appointments[j].substring(0, appointCollIndex));
                         if (userid === appUserID) {
                             existing = userCollection[i].appointments;
@@ -434,7 +462,7 @@ app.use('/local', (req, res, next) => {
     });
 });
 
-app.use('/remove', (req, res, next) => {
+app.use('/remove', (req, res) => {
     console.log("Remove Root");
     console.log('Request URL: ' + req.url);
 
@@ -474,7 +502,14 @@ app.use('/remove', (req, res, next) => {
         try {
             const appointID = userID.toString() + "|" + removeID.toString();
             await db.collection("Appointments").deleteOne({_id: appointID});
-            found = true;
+            const existing = await db.collection("Users").find({ user: parseData.UserID }).toArray();
+            let appointments = existing[0].appointments;
+            const index = appointments.indexOf(appointID);
+            if (index >= 0) {
+                appointments.splice(index, 1);
+                await db.collection("Users").updateOne({_id: userID}, {$set: {appointments: appointments}});
+                found = true;
+            }
         }
         catch (e) {
             console.log("Error Deleting Appointment");
@@ -489,10 +524,6 @@ app.use('/remove', (req, res, next) => {
     });
 });
 
-app.use('/', (req, res, next) => {
-    console.log("Root");
-    console.log('Request URL: ' + req.url);
-    next(); // go to the next middleware for this route
+app.listen(process.env.PORT || port, () => {
+    console.log("Server listening on port " + port);
 });
-
-app.listen(process.env.PORT || port);

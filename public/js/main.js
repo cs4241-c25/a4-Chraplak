@@ -1,3 +1,49 @@
+/*window.onload = function () {
+    // This function will run every time the page gets loaded.
+    fetchData();
+}*/
+
+let username = "";
+
+async function verifyName() {
+    if (username === "" || physicians.length === 0) {
+        setTimeout(verifyName, 5);
+    }
+    else {
+        await loadData();
+    }
+}
+
+async function fetchData() {
+    fetch('/load', {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json"
+        }
+    }).then(response => {
+        if (!response.ok) {
+            handleBadLoadResponse();
+        } else {
+            return response.json();
+        }
+    }).then(data => {
+        // The way I have it in the server, I append the user's username to the first part of the array
+        // so I pop it off here.
+        const user = data.pop();
+        username = user['user'];
+        greetUser(username);
+    });
+    await verifyName();
+}
+
+function handleBadLoadResponse() {
+    alert("Failed to load data!");
+}
+
+function greetUser(user) {
+    document.getElementById("user").innerText = `Hello, ${user}!`;
+}
+
 // last row for creating new ids
 let lastRow = 0;
 
@@ -171,7 +217,7 @@ const editRow = async function( event, id ) {
     if (filled || document.getElementById("edit" + id.toString()).innerHTML === "✎") {
 
         let appointment = {
-            "userID": localStorage.getItem("username"),
+            "userID": username,
             "ID": id,
             "Date": "",
             "Time": "",
@@ -213,8 +259,7 @@ const editRow = async function( event, id ) {
             editButton.innerHTML = "&#9998;";
 
             // get location
-            const local = await pingServer(appointment, "/local");
-            document.getElementById("local" + id.toString()).innerHTML = local;
+            document.getElementById("local" + id.toString()).innerHTML = await pingServer(appointment, "/local");
         }
         else {
             editButton.innerHTML = "&#10003;";
@@ -234,7 +279,7 @@ const removeRow = async function( event, id ) {
     row.parentNode.removeChild(row);
 
     const user = {
-        UserID: localStorage.getItem("username"),
+        UserID: username,
         RemoveID: id
     }
 
@@ -242,91 +287,39 @@ const removeRow = async function( event, id ) {
     await pingServer(user, "/remove");
 }
 
-// logs out user
-const logout = async function( event ) {
-
-    event.preventDefault();
-    localStorage.removeItem("username");
-    localStorage.removeItem("password");
+// loads data from server
+const loadData = async function() {
     document.getElementById("appointments-body").innerHTML = "";
-    lastRow = 0;
+    document.getElementById("add").hidden = false;
+    document.getElementById("add").disabled = false;
 
-    document.getElementById("login-header").innerHTML = "Login";
-    document.getElementById("add").hidden = true;
-    document.getElementById("add").disabled = true;
+    // get initial appointments stored
+    const appointments = await pingServer(username, "/fetch");
 
-    // logs out user
-    await pingServer("logout", "/logout");
-}
+    document.getElementById("appointments-body").innerHTML = "";
 
-// removes row from page and server
-const loadData = async function( local ) {
-
-    let user = "";
-    let pwd = "";
-
-    if (local) {
-        try {
-            user = localStorage.getItem("username");
-            pwd = localStorage.getItem("password");
-        }
-        catch (e) {
-            console.log("No session loaded!");
-        }
-    }
-    else {
-        user = document.getElementById("username").value;
-        pwd = document.getElementById("password").value;
-    }
-
-    // get login credentials
-    const userParse = await pingServer(user + "|" + pwd, "/login");
-
-    if (!local) {
-        if (userParse.status === "new") {
-            alert("Created New Account!");
-        }
-        else if (userParse.status === "wrong") {
-            alert("Wrong Account Credentials!");
-        }
-        else if (userParse.status === "invalid") {
-            alert("Invalid Account Credentials!");
-        }
-    }
-    if ((userParse.status === "correct" || userParse.status === "new") && document.getElementById("login-header").innerHTML !== "Welcome " + userParse.user + "!") {
-
-        localStorage.setItem("username", user);
-        localStorage.setItem("password", pwd);
-
-        document.getElementById("login-header").innerHTML = "Welcome " + userParse.user + "!";
-        document.getElementById("appointments-body").innerHTML = "";
-        document.getElementById("add").hidden = false;
-        document.getElementById("add").disabled = false;
-
-        // get initial appointments stored
-        const appointments = await pingServer(localStorage.getItem("username"), "/fetch");
-
-        document.getElementById("appointments-body").innerHTML = "";
-
-        // updates data in HTML form
-        for (let i = 0; i < appointments.length; i++) {
-            lastRow = parseInt(appointments[i].ID);
-            addElements(lastRow);
-            let date = document.getElementById("date" + lastRow.toString());
-            date.value = appointments[i].Date;
-            let time = document.getElementById("time" + lastRow.toString());
-            time.value = appointments[i].Time;
-            let primary = document.getElementById("primary" + lastRow.toString());
-            primary.value = appointments[i].Physicians;
-            let local = document.getElementById("local" + lastRow.toString());
-            local.innerHTML = appointments[i].Location;
-            let text = document.getElementById("text" + lastRow.toString());
-            text.innerHTML = appointments[i].Description;
-        }
+    // updates data in HTML form
+    for (let i = 0; i < appointments.length; i++) {
+        lastRow = parseInt(appointments[i].ID);
+        addElements(lastRow);
+        let date = document.getElementById("date" + lastRow.toString());
+        date.value = appointments[i].Date;
+        let time = document.getElementById("time" + lastRow.toString());
+        time.value = appointments[i].Time;
+        let primary = document.getElementById("primary" + lastRow.toString());
+        primary.value = appointments[i].Physicians;
+        let local = document.getElementById("local" + lastRow.toString());
+        local.innerHTML = appointments[i].Location;
+        let text = document.getElementById("text" + lastRow.toString());
+        text.innerHTML = appointments[i].Description;
     }
 }
 
 window.onload = async function() {
+
+    document.getElementById("logoutButton").onclick = async function() {
+        await pingServer("", "/logout");
+    };
 
     // functionality for adding row
     let addButton = document.getElementById("add");
@@ -335,12 +328,5 @@ window.onload = async function() {
     // gets list of physicians
     physicians = await pingServer("physicians", "/physicians");
 
-    document.getElementById("submit").onclick = async function(event) {
-        event.preventDefault();
-        await loadData(false);
-    }
-
-    document.getElementById("logout").onclick = logout;
-
-    await loadData(true);
+    await fetchData();
 }

@@ -59,3 +59,16 @@ body > * {
     min-width: var(--local-width) !important;
     max-width: var(--local-width) !important;
 }
+
+#out-span {
+    /*max-width: 74.7833px;
+    max-height: 44.75px;*/
+    display: inline-grid;
+
+}
+
+#in-span {
+    /*max-width: 163.733px;
+    max-height: 44.75px;*/
+    display: inline-grid;
+}
